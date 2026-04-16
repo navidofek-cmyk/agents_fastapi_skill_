@@ -1,0 +1,4 @@
+model = "gpt-5.4"
+
+[projects."/home/ivand/projects/rd/vibe_coding_course/lesson_02/agents_fastapi_skill_"]
+trusted = true

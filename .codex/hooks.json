@@ -1,0 +1,13 @@
+{
+  "pre_command": [
+    {
+      "match": ".*\\b(rm -rf|mkfs|dd if=|shutdown|reboot)\\b.*",
+      "message": "Blocked dangerous command."
+    }
+  ],
+  "stop": [
+    {
+      "message": "Before finishing, run the relevant tests."
+    }
+  ]
+}
