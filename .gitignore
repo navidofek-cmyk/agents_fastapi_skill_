@@ -7,6 +7,7 @@ ci-tasks.db
 coverage-tasks.db
 e2e-tasks.db
 timestamp-tasks.db
+product-tasks.db
 node_modules/
 local_environment_snapshot.txt
 push_github.sh

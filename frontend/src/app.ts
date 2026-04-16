@@ -1,6 +1,8 @@
 type Task = {
   id: number;
   title: string;
+  priority: "low" | "medium" | "high";
+  notes: string;
   completed: boolean;
   created_at: string;
   updated_at: string;
@@ -15,6 +17,8 @@ type TaskFilter = "all" | "active" | "completed";
 const taskList = document.querySelector<HTMLUListElement>("#task-list");
 const taskForm = document.querySelector<HTMLFormElement>("#task-form");
 const taskTitleInput = document.querySelector<HTMLInputElement>("#task-title");
+const taskPriorityInput = document.querySelector<HTMLSelectElement>("#task-priority");
+const taskNotesInput = document.querySelector<HTMLTextAreaElement>("#task-notes");
 const formError = document.querySelector<HTMLParagraphElement>("#form-error");
 const statusText = document.querySelector<HTMLParagraphElement>("#status-text");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-button");
@@ -29,6 +33,8 @@ if (
   !taskList ||
   !taskForm ||
   !taskTitleInput ||
+  !taskPriorityInput ||
+  !taskNotesInput ||
   !formError ||
   !statusText ||
   !refreshButton ||
@@ -54,17 +60,19 @@ const getValidationMessage = async (response: Response): Promise<string> => {
 
 const setFormBusy = (busy: boolean): void => {
   taskTitleInput.disabled = busy;
+  taskPriorityInput.disabled = busy;
+  taskNotesInput.disabled = busy;
   const submitButton = taskForm.querySelector<HTMLButtonElement>('button[type="submit"]');
   if (submitButton) {
     submitButton.disabled = busy;
   }
 };
 
-const createTask = async (title: string): Promise<void> => {
+const createTask = async (title: string, priority: Task["priority"], notes: string): Promise<void> => {
   const response = await fetch("/tasks", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title })
+    body: JSON.stringify({ title, priority, notes })
   });
 
   if (!response.ok) {
@@ -72,11 +80,11 @@ const createTask = async (title: string): Promise<void> => {
   }
 };
 
-const updateTask = async (taskId: number, title: string): Promise<void> => {
+const updateTask = async (taskId: number, title: string, priority: Task["priority"], notes: string): Promise<void> => {
   const response = await fetch(`/tasks/${taskId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title })
+    body: JSON.stringify({ title, priority, notes })
   });
 
   if (!response.ok) {
@@ -113,6 +121,16 @@ const updateStats = (tasks: Task[]): void => {
   completedCount.textContent = String(completed);
 };
 
+const getPriorityLabel = (priority: Task["priority"]): string => {
+  if (priority === "high") {
+    return "High priority";
+  }
+  if (priority === "low") {
+    return "Low priority";
+  }
+  return "Medium priority";
+};
+
 const getVisibleTasks = (tasks: Task[]): Task[] => {
   if (currentFilter === "active") {
     return tasks.filter((task) => !task.completed);
@@ -147,39 +165,52 @@ const renderTasks = (tasks: Task[]): void => {
     const timestampLabel = fragment.querySelector<HTMLSpanElement>(".task-timestamp");
     const editForm = fragment.querySelector<HTMLFormElement>(".task-edit-form");
     const titleInput = fragment.querySelector<HTMLInputElement>(".task-title-input");
+    const priorityInput = fragment.querySelector<HTMLSelectElement>(".task-priority-input");
+    const notesInput = fragment.querySelector<HTMLTextAreaElement>(".task-notes-input");
     const saveButton = fragment.querySelector<HTMLButtonElement>(".save-action");
     const completeButton = fragment.querySelector<HTMLButtonElement>(".complete-action");
     const deleteButton = fragment.querySelector<HTMLButtonElement>(".delete-action");
     const errorNode = fragment.querySelector<HTMLParagraphElement>(".task-error");
 
-    if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
+    if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !priorityInput || !notesInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
       continue;
     }
 
     card.dataset.completed = String(task.completed);
-    badge.textContent = task.completed ? "Completed" : "Active";
+    badge.dataset.priority = task.priority;
+    badge.textContent = task.completed ? `${getPriorityLabel(task.priority)} · Completed` : getPriorityLabel(task.priority);
     idLabel.textContent = `Task #${task.id}`;
     timestampLabel.textContent =
       task.created_at === task.updated_at
         ? `Created ${formatTimestamp(task.created_at)}`
         : `Updated ${formatTimestamp(task.updated_at)}`;
     titleInput.value = task.title;
+    priorityInput.value = task.priority;
+    notesInput.value = task.notes;
     saveButton.disabled = true;
     completeButton.dataset.completed = String(task.completed);
     completeButton.textContent = task.completed ? "Completed" : "Complete";
     completeButton.disabled = task.completed;
 
-    titleInput.addEventListener("input", () => {
-      saveButton.disabled = titleInput.value.trim() === task.title;
-    });
+    const syncSaveState = (): void => {
+      saveButton.disabled =
+        titleInput.value.trim() === task.title &&
+        priorityInput.value === task.priority &&
+        notesInput.value === task.notes;
+    };
+
+    titleInput.addEventListener("input", syncSaveState);
+    priorityInput.addEventListener("change", syncSaveState);
+    notesInput.addEventListener("input", syncSaveState);
 
     editForm.addEventListener("submit", async (event: SubmitEvent) => {
       event.preventDefault();
       errorNode.textContent = "";
       const trimmedTitle = titleInput.value.trim();
+      const notes = notesInput.value.trim();
 
       try {
-        await updateTask(task.id, trimmedTitle);
+        await updateTask(task.id, trimmedTitle, priorityInput.value as Task["priority"], notes);
         await loadTasks();
       } catch (error) {
         errorNode.textContent = error instanceof Error ? error.message : "Could not save task.";
@@ -229,12 +260,14 @@ const loadTasks = async (): Promise<void> => {
 taskForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const title = taskTitleInput.value.trim();
+  const notes = taskNotesInput.value.trim();
   formError.textContent = "";
   setFormBusy(true);
 
   try {
-    await createTask(title);
+    await createTask(title, taskPriorityInput.value as Task["priority"], notes);
     taskForm.reset();
+    taskPriorityInput.value = "medium";
     await loadTasks();
   } catch (error) {
     formError.textContent = error instanceof Error ? error.message : "Could not create task.";

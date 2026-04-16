@@ -2,6 +2,8 @@
 const taskList = document.querySelector("#task-list");
 const taskForm = document.querySelector("#task-form");
 const taskTitleInput = document.querySelector("#task-title");
+const taskPriorityInput = document.querySelector("#task-priority");
+const taskNotesInput = document.querySelector("#task-notes");
 const formError = document.querySelector("#form-error");
 const statusText = document.querySelector("#status-text");
 const refreshButton = document.querySelector("#refresh-button");
@@ -14,6 +16,8 @@ const emptyState = document.querySelector("#empty-state");
 if (!taskList ||
     !taskForm ||
     !taskTitleInput ||
+    !taskPriorityInput ||
+    !taskNotesInput ||
     !formError ||
     !statusText ||
     !refreshButton ||
@@ -36,26 +40,28 @@ const getValidationMessage = async (response) => {
 };
 const setFormBusy = (busy) => {
     taskTitleInput.disabled = busy;
+    taskPriorityInput.disabled = busy;
+    taskNotesInput.disabled = busy;
     const submitButton = taskForm.querySelector('button[type="submit"]');
     if (submitButton) {
         submitButton.disabled = busy;
     }
 };
-const createTask = async (title) => {
+const createTask = async (title, priority, notes) => {
     const response = await fetch("/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title })
+        body: JSON.stringify({ title, priority, notes })
     });
     if (!response.ok) {
         throw new Error(await getValidationMessage(response));
     }
 };
-const updateTask = async (taskId, title) => {
+const updateTask = async (taskId, title, priority, notes) => {
     const response = await fetch(`/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title })
+        body: JSON.stringify({ title, priority, notes })
     });
     if (!response.ok) {
         throw new Error(await getValidationMessage(response));
@@ -86,6 +92,15 @@ const updateStats = (tasks) => {
     activeCount.textContent = String(tasks.length - completed);
     completedCount.textContent = String(completed);
 };
+const getPriorityLabel = (priority) => {
+    if (priority === "high") {
+        return "High priority";
+    }
+    if (priority === "low") {
+        return "Low priority";
+    }
+    return "Medium priority";
+};
 const getVisibleTasks = (tasks) => {
     if (currentFilter === "active") {
         return tasks.filter((task) => !task.completed);
@@ -114,34 +129,46 @@ const renderTasks = (tasks) => {
         const timestampLabel = fragment.querySelector(".task-timestamp");
         const editForm = fragment.querySelector(".task-edit-form");
         const titleInput = fragment.querySelector(".task-title-input");
+        const priorityInput = fragment.querySelector(".task-priority-input");
+        const notesInput = fragment.querySelector(".task-notes-input");
         const saveButton = fragment.querySelector(".save-action");
         const completeButton = fragment.querySelector(".complete-action");
         const deleteButton = fragment.querySelector(".delete-action");
         const errorNode = fragment.querySelector(".task-error");
-        if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
+        if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !priorityInput || !notesInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
             continue;
         }
         card.dataset.completed = String(task.completed);
-        badge.textContent = task.completed ? "Completed" : "Active";
+        badge.dataset.priority = task.priority;
+        badge.textContent = task.completed ? `${getPriorityLabel(task.priority)} · Completed` : getPriorityLabel(task.priority);
         idLabel.textContent = `Task #${task.id}`;
         timestampLabel.textContent =
             task.created_at === task.updated_at
                 ? `Created ${formatTimestamp(task.created_at)}`
                 : `Updated ${formatTimestamp(task.updated_at)}`;
         titleInput.value = task.title;
+        priorityInput.value = task.priority;
+        notesInput.value = task.notes;
         saveButton.disabled = true;
         completeButton.dataset.completed = String(task.completed);
         completeButton.textContent = task.completed ? "Completed" : "Complete";
         completeButton.disabled = task.completed;
-        titleInput.addEventListener("input", () => {
-            saveButton.disabled = titleInput.value.trim() === task.title;
-        });
+        const syncSaveState = () => {
+            saveButton.disabled =
+                titleInput.value.trim() === task.title &&
+                    priorityInput.value === task.priority &&
+                    notesInput.value === task.notes;
+        };
+        titleInput.addEventListener("input", syncSaveState);
+        priorityInput.addEventListener("change", syncSaveState);
+        notesInput.addEventListener("input", syncSaveState);
         editForm.addEventListener("submit", async (event) => {
             event.preventDefault();
             errorNode.textContent = "";
             const trimmedTitle = titleInput.value.trim();
+            const notes = notesInput.value.trim();
             try {
-                await updateTask(task.id, trimmedTitle);
+                await updateTask(task.id, trimmedTitle, priorityInput.value, notes);
                 await loadTasks();
             }
             catch (error) {
@@ -185,11 +212,13 @@ const loadTasks = async () => {
 taskForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const title = taskTitleInput.value.trim();
+    const notes = taskNotesInput.value.trim();
     formError.textContent = "";
     setFormBusy(true);
     try {
-        await createTask(title);
+        await createTask(title, taskPriorityInput.value, notes);
         taskForm.reset();
+        taskPriorityInput.value = "medium";
         await loadTasks();
     }
     catch (error) {

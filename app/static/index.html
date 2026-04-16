@@ -24,6 +24,19 @@
             autocomplete="off"
             required
           />
+          <label class="sr-only" for="task-priority">Priority</label>
+          <select id="task-priority" name="priority">
+            <option value="low">Low priority</option>
+            <option value="medium" selected>Medium priority</option>
+            <option value="high">High priority</option>
+          </select>
+          <label class="sr-only" for="task-notes">Task notes</label>
+          <textarea
+            id="task-notes"
+            name="notes"
+            rows="4"
+            placeholder="Add context, links, or the next step"
+          ></textarea>
           <button type="submit">Create</button>
         </form>
         <p id="form-error" class="form-error" role="alert"></p>
@@ -78,6 +91,12 @@
         </div>
         <form class="task-edit-form">
           <input class="task-title-input" name="title" type="text" required />
+          <select class="task-priority-input" name="priority">
+            <option value="low">Low priority</option>
+            <option value="medium">Medium priority</option>
+            <option value="high">High priority</option>
+          </select>
+          <textarea class="task-notes-input" name="notes" rows="3" placeholder="No notes yet"></textarea>
           <div class="task-actions">
             <button class="primary-action save-action" type="submit">Save</button>
             <button class="secondary-action complete-action" type="button">Complete</button>
