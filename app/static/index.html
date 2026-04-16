@@ -37,6 +37,8 @@
             rows="4"
             placeholder="Add context, links, or the next step"
           ></textarea>
+          <label class="sr-only" for="task-due-date">Due date</label>
+          <input id="task-due-date" name="due_date" type="date" />
           <button type="submit">Create</button>
         </form>
         <p id="form-error" class="form-error" role="alert"></p>
@@ -87,7 +89,10 @@
             <span class="task-badge"></span>
             <span class="task-id"></span>
           </div>
-          <span class="task-timestamp"></span>
+          <div class="task-meta">
+            <span class="task-due-date"></span>
+            <span class="task-timestamp"></span>
+          </div>
         </div>
         <form class="task-edit-form">
           <input class="task-title-input" name="title" type="text" required />
@@ -97,6 +102,7 @@
             <option value="high">High priority</option>
           </select>
           <textarea class="task-notes-input" name="notes" rows="3" placeholder="No notes yet"></textarea>
+          <input class="task-due-date-input" name="due_date" type="date" />
           <div class="task-actions">
             <button class="primary-action save-action" type="submit">Save</button>
             <button class="secondary-action complete-action" type="button">Complete</button>

@@ -320,6 +320,13 @@ button:disabled {
   color: var(--muted);
 }
 
+.task-meta {
+  display: grid;
+  justify-items: end;
+  gap: 0.2rem;
+}
+
+.task-due-date,
 .task-timestamp {
   font-size: 0.82rem;
   color: var(--muted);

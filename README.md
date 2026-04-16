@@ -1,6 +1,6 @@
 # Task API
 
-Simple FastAPI backend with SQLite task persistence, a TypeScript frontend, pytest coverage, Docker support, and Codex agent workflow files.
+Simple FastAPI backend with SQLite task persistence, due dates, priorities, notes, a TypeScript frontend, pytest coverage, Docker support, and Codex agent workflow files.
 
 ## Run locally
 
@@ -71,3 +71,5 @@ The app listens on port `8000` inside the container. The default Docker run stor
 - `PATCH /tasks/{id}`
 - `DELETE /tasks/{id}`
 - `POST /tasks/{id}/complete`
+
+Tasks support `title`, `priority`, `notes`, optional `due_date`, `completed`, `created_at`, and `updated_at`.

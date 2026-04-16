@@ -3,6 +3,7 @@ type Task = {
   title: string;
   priority: "low" | "medium" | "high";
   notes: string;
+  due_date: string | null;
   completed: boolean;
   created_at: string;
   updated_at: string;
@@ -19,6 +20,7 @@ const taskForm = document.querySelector<HTMLFormElement>("#task-form");
 const taskTitleInput = document.querySelector<HTMLInputElement>("#task-title");
 const taskPriorityInput = document.querySelector<HTMLSelectElement>("#task-priority");
 const taskNotesInput = document.querySelector<HTMLTextAreaElement>("#task-notes");
+const taskDueDateInput = document.querySelector<HTMLInputElement>("#task-due-date");
 const formError = document.querySelector<HTMLParagraphElement>("#form-error");
 const statusText = document.querySelector<HTMLParagraphElement>("#status-text");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-button");
@@ -35,6 +37,7 @@ if (
   !taskTitleInput ||
   !taskPriorityInput ||
   !taskNotesInput ||
+  !taskDueDateInput ||
   !formError ||
   !statusText ||
   !refreshButton ||
@@ -62,17 +65,23 @@ const setFormBusy = (busy: boolean): void => {
   taskTitleInput.disabled = busy;
   taskPriorityInput.disabled = busy;
   taskNotesInput.disabled = busy;
+  taskDueDateInput.disabled = busy;
   const submitButton = taskForm.querySelector<HTMLButtonElement>('button[type="submit"]');
   if (submitButton) {
     submitButton.disabled = busy;
   }
 };
 
-const createTask = async (title: string, priority: Task["priority"], notes: string): Promise<void> => {
+const createTask = async (
+  title: string,
+  priority: Task["priority"],
+  notes: string,
+  dueDate: string
+): Promise<void> => {
   const response = await fetch("/tasks", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, priority, notes })
+    body: JSON.stringify({ title, priority, notes, due_date: dueDate || null })
   });
 
   if (!response.ok) {
@@ -80,11 +89,17 @@ const createTask = async (title: string, priority: Task["priority"], notes: stri
   }
 };
 
-const updateTask = async (taskId: number, title: string, priority: Task["priority"], notes: string): Promise<void> => {
+const updateTask = async (
+  taskId: number,
+  title: string,
+  priority: Task["priority"],
+  notes: string,
+  dueDate: string
+): Promise<void> => {
   const response = await fetch(`/tasks/${taskId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, priority, notes })
+    body: JSON.stringify({ title, priority, notes, due_date: dueDate || null })
   });
 
   if (!response.ok) {
@@ -112,6 +127,15 @@ const formatTimestamp = (value: string): string => {
     hour: "2-digit",
     minute: "2-digit"
   })}`;
+};
+
+const formatDueDate = (value: string | null): string => {
+  if (!value) {
+    return "No due date";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  return `Due ${date.toLocaleDateString()}`;
 };
 
 const updateStats = (tasks: Task[]): void => {
@@ -162,17 +186,34 @@ const renderTasks = (tasks: Task[]): void => {
     const card = fragment.querySelector<HTMLLIElement>(".task-card");
     const badge = fragment.querySelector<HTMLSpanElement>(".task-badge");
     const idLabel = fragment.querySelector<HTMLSpanElement>(".task-id");
+    const dueDateLabel = fragment.querySelector<HTMLSpanElement>(".task-due-date");
     const timestampLabel = fragment.querySelector<HTMLSpanElement>(".task-timestamp");
     const editForm = fragment.querySelector<HTMLFormElement>(".task-edit-form");
     const titleInput = fragment.querySelector<HTMLInputElement>(".task-title-input");
     const priorityInput = fragment.querySelector<HTMLSelectElement>(".task-priority-input");
     const notesInput = fragment.querySelector<HTMLTextAreaElement>(".task-notes-input");
+    const dueDateInput = fragment.querySelector<HTMLInputElement>(".task-due-date-input");
     const saveButton = fragment.querySelector<HTMLButtonElement>(".save-action");
     const completeButton = fragment.querySelector<HTMLButtonElement>(".complete-action");
     const deleteButton = fragment.querySelector<HTMLButtonElement>(".delete-action");
     const errorNode = fragment.querySelector<HTMLParagraphElement>(".task-error");
 
-    if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !priorityInput || !notesInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
+    if (
+      !card ||
+      !badge ||
+      !idLabel ||
+      !dueDateLabel ||
+      !timestampLabel ||
+      !editForm ||
+      !titleInput ||
+      !priorityInput ||
+      !notesInput ||
+      !dueDateInput ||
+      !saveButton ||
+      !completeButton ||
+      !deleteButton ||
+      !errorNode
+    ) {
       continue;
     }
 
@@ -180,6 +221,7 @@ const renderTasks = (tasks: Task[]): void => {
     badge.dataset.priority = task.priority;
     badge.textContent = task.completed ? `${getPriorityLabel(task.priority)} · Completed` : getPriorityLabel(task.priority);
     idLabel.textContent = `Task #${task.id}`;
+    dueDateLabel.textContent = formatDueDate(task.due_date);
     timestampLabel.textContent =
       task.created_at === task.updated_at
         ? `Created ${formatTimestamp(task.created_at)}`
@@ -187,6 +229,7 @@ const renderTasks = (tasks: Task[]): void => {
     titleInput.value = task.title;
     priorityInput.value = task.priority;
     notesInput.value = task.notes;
+    dueDateInput.value = task.due_date ?? "";
     saveButton.disabled = true;
     completeButton.dataset.completed = String(task.completed);
     completeButton.textContent = task.completed ? "Completed" : "Complete";
@@ -196,21 +239,24 @@ const renderTasks = (tasks: Task[]): void => {
       saveButton.disabled =
         titleInput.value.trim() === task.title &&
         priorityInput.value === task.priority &&
-        notesInput.value === task.notes;
+        notesInput.value === task.notes &&
+        dueDateInput.value === (task.due_date ?? "");
     };
 
     titleInput.addEventListener("input", syncSaveState);
     priorityInput.addEventListener("change", syncSaveState);
     notesInput.addEventListener("input", syncSaveState);
+    dueDateInput.addEventListener("input", syncSaveState);
 
     editForm.addEventListener("submit", async (event: SubmitEvent) => {
       event.preventDefault();
       errorNode.textContent = "";
       const trimmedTitle = titleInput.value.trim();
       const notes = notesInput.value.trim();
+      const dueDate = dueDateInput.value;
 
       try {
-        await updateTask(task.id, trimmedTitle, priorityInput.value as Task["priority"], notes);
+        await updateTask(task.id, trimmedTitle, priorityInput.value as Task["priority"], notes, dueDate);
         await loadTasks();
       } catch (error) {
         errorNode.textContent = error instanceof Error ? error.message : "Could not save task.";
@@ -261,11 +307,12 @@ taskForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const title = taskTitleInput.value.trim();
   const notes = taskNotesInput.value.trim();
+  const dueDate = taskDueDateInput.value;
   formError.textContent = "";
   setFormBusy(true);
 
   try {
-    await createTask(title, taskPriorityInput.value as Task["priority"], notes);
+    await createTask(title, taskPriorityInput.value as Task["priority"], notes, dueDate);
     taskForm.reset();
     taskPriorityInput.value = "medium";
     await loadTasks();

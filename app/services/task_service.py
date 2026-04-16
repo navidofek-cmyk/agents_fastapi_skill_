@@ -28,6 +28,7 @@ class TaskService:
                     title TEXT NOT NULL,
                     priority TEXT NOT NULL DEFAULT 'medium',
                     notes TEXT NOT NULL DEFAULT '',
+                    due_date TEXT,
                     completed INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -48,13 +49,14 @@ class TaskService:
                     "title TEXT NOT NULL, "
                     "priority TEXT NOT NULL DEFAULT 'medium', "
                     "notes TEXT NOT NULL DEFAULT '', "
+                    "due_date TEXT, "
                     "completed INTEGER NOT NULL DEFAULT 0, "
                     "created_at TEXT NOT NULL, "
                     "updated_at TEXT NOT NULL)"
                 )
                 connection.execute(
-                    "INSERT INTO tasks_new (id, title, priority, notes, completed, created_at, updated_at) "
-                    "SELECT id, title, 'medium', '', completed, created_at, ? FROM tasks",
+                    "INSERT INTO tasks_new (id, title, priority, notes, due_date, completed, created_at, updated_at) "
+                    "SELECT id, title, 'medium', '', NULL, completed, created_at, ? FROM tasks",
                     (now,),
                 )
                 connection.execute("DROP TABLE tasks")
@@ -71,6 +73,8 @@ class TaskService:
                 connection.execute("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'")
             if "notes" not in columns:
                 connection.execute("ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+            if "due_date" not in columns:
+                connection.execute("ALTER TABLE tasks ADD COLUMN due_date TEXT")
             connection.commit()
 
     def _now(self) -> str:
@@ -82,6 +86,7 @@ class TaskService:
             "title": row["title"],
             "priority": row["priority"],
             "notes": row["notes"],
+            "due_date": row["due_date"],
             "completed": bool(row["completed"]),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
@@ -94,13 +99,19 @@ class TaskService:
             connection.execute("DELETE FROM sqlite_sequence WHERE name = 'tasks'")
             connection.commit()
 
-    def create_task(self, title: str, priority: str = "medium", notes: str = "") -> dict[str, object]:
+    def create_task(
+        self,
+        title: str,
+        priority: str = "medium",
+        notes: str = "",
+        due_date: str | None = None,
+    ) -> dict[str, object]:
         now = self._now()
         with self._connect() as connection:
             cursor = connection.execute(
-                "INSERT INTO tasks (title, priority, notes, completed, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (title, priority, notes, False, now, now),
+                "INSERT INTO tasks (title, priority, notes, due_date, completed, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (title, priority, notes, due_date, False, now, now),
             )
             connection.commit()
             task_id = cursor.lastrowid
@@ -110,7 +121,7 @@ class TaskService:
     def list_tasks(self) -> list[dict[str, object]]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT id, title, priority, notes, completed, created_at, updated_at FROM tasks ORDER BY id"
+                "SELECT id, title, priority, notes, due_date, completed, created_at, updated_at FROM tasks ORDER BY id"
             ).fetchall()
 
         return [self._serialize_task(row) for row in rows]
@@ -118,7 +129,7 @@ class TaskService:
     def get_task(self, task_id: int) -> dict[str, object]:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT id, title, priority, notes, completed, created_at, updated_at FROM tasks WHERE id = ?",
+                "SELECT id, title, priority, notes, due_date, completed, created_at, updated_at FROM tasks WHERE id = ?",
                 (task_id,),
             ).fetchone()
 
@@ -135,12 +146,19 @@ class TaskService:
         if cursor.rowcount == 0:
             raise TaskNotFoundError(task_id)
 
-    def update_task(self, task_id: int, title: str, priority: str, notes: str) -> dict[str, object]:
+    def update_task(
+        self,
+        task_id: int,
+        title: str,
+        priority: str,
+        notes: str,
+        due_date: str | None,
+    ) -> dict[str, object]:
         now = self._now()
         with self._connect() as connection:
             cursor = connection.execute(
-                "UPDATE tasks SET title = ?, priority = ?, notes = ?, updated_at = ? WHERE id = ?",
-                (title, priority, notes, now, task_id),
+                "UPDATE tasks SET title = ?, priority = ?, notes = ?, due_date = ?, updated_at = ? WHERE id = ?",
+                (title, priority, notes, due_date, now, task_id),
             )
             connection.commit()
 
