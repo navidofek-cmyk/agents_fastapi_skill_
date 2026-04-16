@@ -6,7 +6,7 @@ This document defines how agent roles are split in this repository when using th
 |---|---|---|---|---|
 | Planner | Narrow scope, define the smallest safe change, identify tests first, assign file ownership | User request, current repo state | Summary, plan, test plan, file ownership | The implementation scope is clear and bounded |
 | Coder | Implement the requested change only in the assigned files | Planner output, current code | Code changes | The feature or fix is implemented in the agreed write scope |
-| Tester | Add or adjust tests and run the relevant verification commands | Planner output, coder changes | Test changes, command results | The behavior is verified with concrete test output |
+| Tester | Mandatory verification step: add or adjust tests and run the relevant verification commands | Planner output, coder changes | Test changes, command results | The behavior is verified with concrete test output and the task cannot close without it |
 | Reviewer | Look for bugs, regressions, scope leaks, and documentation drift | Diff, test results, current repo state | Findings, review notes, residual risks | No critical or unresolved issue remains |
 | Main Rollout | Integrate results, resolve review findings, update docs/logs, provide final status | All role outputs | Final state, docs updates, final summary | The task is closed end-to-end |
 
@@ -25,6 +25,7 @@ This document defines how agent roles are split in this repository when using th
 - Must preserve existing architecture patterns unless the task requires otherwise.
 
 ### Tester
+- Is mandatory for every code change in this repository.
 - Must focus on behavior, not implementation details.
 - Must run the relevant commands and report exact results.
 - Must prefer the smallest test change that proves the requested behavior.
