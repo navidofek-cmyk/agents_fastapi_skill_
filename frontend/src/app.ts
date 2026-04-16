@@ -14,6 +14,7 @@ type ValidationErrorResponse = {
 };
 
 type TaskFilter = "all" | "active" | "completed";
+type TaskSort = "recent" | "due" | "priority" | "created";
 
 const taskList = document.querySelector<HTMLUListElement>("#task-list");
 const taskForm = document.querySelector<HTMLFormElement>("#task-form");
@@ -24,6 +25,8 @@ const taskDueDateInput = document.querySelector<HTMLInputElement>("#task-due-dat
 const formError = document.querySelector<HTMLParagraphElement>("#form-error");
 const statusText = document.querySelector<HTMLParagraphElement>("#status-text");
 const refreshButton = document.querySelector<HTMLButtonElement>("#refresh-button");
+const searchInput = document.querySelector<HTMLInputElement>("#task-search");
+const sortInput = document.querySelector<HTMLSelectElement>("#task-sort");
 const taskTemplate = document.querySelector<HTMLTemplateElement>("#task-item-template");
 const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>(".filter-button"));
 const totalCount = document.querySelector<HTMLElement>("#total-count");
@@ -41,6 +44,8 @@ if (
   !formError ||
   !statusText ||
   !refreshButton ||
+  !searchInput ||
+  !sortInput ||
   !taskTemplate ||
   !totalCount ||
   !activeCount ||
@@ -51,6 +56,8 @@ if (
 }
 
 let currentFilter: TaskFilter = "all";
+let currentSort: TaskSort = "recent";
+let currentQuery = "";
 
 const getValidationMessage = async (response: Response): Promise<string> => {
   try {
@@ -138,6 +145,25 @@ const formatDueDate = (value: string | null): string => {
   return `Due ${date.toLocaleDateString()}`;
 };
 
+const getDueStatus = (task: Task): "none" | "overdue" | "today" | "upcoming" => {
+  if (!task.due_date || task.completed) {
+    return "none";
+  }
+
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  if (task.due_date < todayKey) {
+    return "overdue";
+  }
+
+  if (task.due_date === todayKey) {
+    return "today";
+  }
+
+  return "upcoming";
+};
+
 const updateStats = (tasks: Task[]): void => {
   const completed = tasks.filter((task) => task.completed).length;
   totalCount.textContent = String(tasks.length);
@@ -155,16 +181,65 @@ const getPriorityLabel = (priority: Task["priority"]): string => {
   return "Medium priority";
 };
 
+const getPriorityRank = (priority: Task["priority"]): number => {
+  if (priority === "high") {
+    return 0;
+  }
+
+  if (priority === "medium") {
+    return 1;
+  }
+
+  return 2;
+};
+
 const getVisibleTasks = (tasks: Task[]): Task[] => {
-  if (currentFilter === "active") {
-    return tasks.filter((task) => !task.completed);
-  }
+  const query = currentQuery.trim().toLowerCase();
+  const filteredTasks = tasks.filter((task) => {
+    if (currentFilter === "active" && task.completed) {
+      return false;
+    }
 
-  if (currentFilter === "completed") {
-    return tasks.filter((task) => task.completed);
-  }
+    if (currentFilter === "completed" && !task.completed) {
+      return false;
+    }
 
-  return tasks;
+    if (!query) {
+      return true;
+    }
+
+    return `${task.title} ${task.notes}`.toLowerCase().includes(query);
+  });
+
+  return filteredTasks.slice().sort((left: Task, right: Task) => {
+    if (currentSort === "due") {
+      const leftDue = left.due_date ?? "9999-12-31";
+      const rightDue = right.due_date ?? "9999-12-31";
+      if (leftDue !== rightDue) {
+        return leftDue.localeCompare(rightDue);
+      }
+    }
+
+    if (currentSort === "priority") {
+      const priorityDelta = getPriorityRank(left.priority) - getPriorityRank(right.priority);
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+    }
+
+    if (currentSort === "created") {
+      if (left.created_at !== right.created_at) {
+        return left.created_at.localeCompare(right.created_at);
+      }
+      return left.id - right.id;
+    }
+
+    if (left.updated_at !== right.updated_at) {
+      return right.updated_at.localeCompare(left.updated_at);
+    }
+
+    return right.id - left.id;
+  });
 };
 
 const renderTasks = (tasks: Task[]): void => {
@@ -179,7 +254,10 @@ const renderTasks = (tasks: Task[]): void => {
   }
 
   emptyState.hidden = visibleTasks.length !== 0;
-  statusText.textContent = `${visibleTasks.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} visible.`;
+  statusText.textContent =
+    visibleTasks.length === 0
+      ? "No tasks match the current search or filter."
+      : `${visibleTasks.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} visible.`;
 
   for (const task of visibleTasks) {
     const fragment = taskTemplate.content.cloneNode(true) as DocumentFragment;
@@ -218,10 +296,13 @@ const renderTasks = (tasks: Task[]): void => {
     }
 
     card.dataset.completed = String(task.completed);
+    const dueStatus = getDueStatus(task);
+    card.dataset.dueStatus = dueStatus;
     badge.dataset.priority = task.priority;
     badge.textContent = task.completed ? `${getPriorityLabel(task.priority)} · Completed` : getPriorityLabel(task.priority);
     idLabel.textContent = `Task #${task.id}`;
     dueDateLabel.textContent = formatDueDate(task.due_date);
+    dueDateLabel.dataset.dueStatus = dueStatus;
     timestampLabel.textContent =
       task.created_at === task.updated_at
         ? `Created ${formatTimestamp(task.created_at)}`
@@ -324,6 +405,16 @@ taskForm.addEventListener("submit", async (event) => {
 });
 
 refreshButton.addEventListener("click", () => {
+  void loadTasks();
+});
+
+searchInput.addEventListener("input", () => {
+  currentQuery = searchInput.value;
+  void loadTasks();
+});
+
+sortInput.addEventListener("change", () => {
+  currentSort = (sortInput.value as TaskSort | undefined) ?? "recent";
   void loadTasks();
 });
 

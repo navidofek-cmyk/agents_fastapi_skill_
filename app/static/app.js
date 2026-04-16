@@ -8,6 +8,8 @@ const taskDueDateInput = document.querySelector("#task-due-date");
 const formError = document.querySelector("#form-error");
 const statusText = document.querySelector("#status-text");
 const refreshButton = document.querySelector("#refresh-button");
+const searchInput = document.querySelector("#task-search");
+const sortInput = document.querySelector("#task-sort");
 const taskTemplate = document.querySelector("#task-item-template");
 const filterButtons = Array.from(document.querySelectorAll(".filter-button"));
 const totalCount = document.querySelector("#total-count");
@@ -23,6 +25,8 @@ if (!taskList ||
     !formError ||
     !statusText ||
     !refreshButton ||
+    !searchInput ||
+    !sortInput ||
     !taskTemplate ||
     !totalCount ||
     !activeCount ||
@@ -31,6 +35,8 @@ if (!taskList ||
     throw new Error("Frontend markup is incomplete.");
 }
 let currentFilter = "all";
+let currentSort = "recent";
+let currentQuery = "";
 const getValidationMessage = async (response) => {
     try {
         const payload = (await response.json());
@@ -96,6 +102,20 @@ const formatDueDate = (value) => {
     const date = new Date(`${value}T00:00:00`);
     return `Due ${date.toLocaleDateString()}`;
 };
+const getDueStatus = (task) => {
+    if (!task.due_date || task.completed) {
+        return "none";
+    }
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    if (task.due_date < todayKey) {
+        return "overdue";
+    }
+    if (task.due_date === todayKey) {
+        return "today";
+    }
+    return "upcoming";
+};
 const updateStats = (tasks) => {
     const completed = tasks.filter((task) => task.completed).length;
     totalCount.textContent = String(tasks.length);
@@ -111,14 +131,54 @@ const getPriorityLabel = (priority) => {
     }
     return "Medium priority";
 };
+const getPriorityRank = (priority) => {
+    if (priority === "high") {
+        return 0;
+    }
+    if (priority === "medium") {
+        return 1;
+    }
+    return 2;
+};
 const getVisibleTasks = (tasks) => {
-    if (currentFilter === "active") {
-        return tasks.filter((task) => !task.completed);
-    }
-    if (currentFilter === "completed") {
-        return tasks.filter((task) => task.completed);
-    }
-    return tasks;
+    const query = currentQuery.trim().toLowerCase();
+    const filteredTasks = tasks.filter((task) => {
+        if (currentFilter === "active" && task.completed) {
+            return false;
+        }
+        if (currentFilter === "completed" && !task.completed) {
+            return false;
+        }
+        if (!query) {
+            return true;
+        }
+        return `${task.title} ${task.notes}`.toLowerCase().includes(query);
+    });
+    return filteredTasks.slice().sort((left, right) => {
+        if (currentSort === "due") {
+            const leftDue = left.due_date ?? "9999-12-31";
+            const rightDue = right.due_date ?? "9999-12-31";
+            if (leftDue !== rightDue) {
+                return leftDue.localeCompare(rightDue);
+            }
+        }
+        if (currentSort === "priority") {
+            const priorityDelta = getPriorityRank(left.priority) - getPriorityRank(right.priority);
+            if (priorityDelta !== 0) {
+                return priorityDelta;
+            }
+        }
+        if (currentSort === "created") {
+            if (left.created_at !== right.created_at) {
+                return left.created_at.localeCompare(right.created_at);
+            }
+            return left.id - right.id;
+        }
+        if (left.updated_at !== right.updated_at) {
+            return right.updated_at.localeCompare(left.updated_at);
+        }
+        return right.id - left.id;
+    });
 };
 const renderTasks = (tasks) => {
     taskList.replaceChildren();
@@ -130,7 +190,10 @@ const renderTasks = (tasks) => {
         return;
     }
     emptyState.hidden = visibleTasks.length !== 0;
-    statusText.textContent = `${visibleTasks.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} visible.`;
+    statusText.textContent =
+        visibleTasks.length === 0
+            ? "No tasks match the current search or filter."
+            : `${visibleTasks.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} visible.`;
     for (const task of visibleTasks) {
         const fragment = taskTemplate.content.cloneNode(true);
         const card = fragment.querySelector(".task-card");
@@ -164,10 +227,13 @@ const renderTasks = (tasks) => {
             continue;
         }
         card.dataset.completed = String(task.completed);
+        const dueStatus = getDueStatus(task);
+        card.dataset.dueStatus = dueStatus;
         badge.dataset.priority = task.priority;
         badge.textContent = task.completed ? `${getPriorityLabel(task.priority)} · Completed` : getPriorityLabel(task.priority);
         idLabel.textContent = `Task #${task.id}`;
         dueDateLabel.textContent = formatDueDate(task.due_date);
+        dueDateLabel.dataset.dueStatus = dueStatus;
         timestampLabel.textContent =
             task.created_at === task.updated_at
                 ? `Created ${formatTimestamp(task.created_at)}`
@@ -260,6 +326,14 @@ taskForm.addEventListener("submit", async (event) => {
     }
 });
 refreshButton.addEventListener("click", () => {
+    void loadTasks();
+});
+searchInput.addEventListener("input", () => {
+    currentQuery = searchInput.value;
+    void loadTasks();
+});
+sortInput.addEventListener("change", () => {
+    currentSort = sortInput.value ?? "recent";
     void loadTasks();
 });
 for (const button of filterButtons) {

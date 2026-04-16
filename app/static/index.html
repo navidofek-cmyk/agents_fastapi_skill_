@@ -51,6 +51,19 @@
             <h2>Your tasks</h2>
           </div>
           <div class="board-tools">
+            <label class="search-shell" for="task-search">
+              <span class="sr-only">Search tasks</span>
+              <input id="task-search" type="search" placeholder="Search title or notes" />
+            </label>
+            <label class="sort-shell" for="task-sort">
+              <span class="sr-only">Sort tasks</span>
+              <select id="task-sort">
+                <option value="recent">Recently updated</option>
+                <option value="due">Due date</option>
+                <option value="priority">Priority</option>
+                <option value="created">Created first</option>
+              </select>
+            </label>
             <div class="filters" role="tablist" aria-label="Task filters">
               <button class="filter-button is-active" data-filter="all" type="button">All</button>
               <button class="filter-button" data-filter="active" type="button">Active</button>
