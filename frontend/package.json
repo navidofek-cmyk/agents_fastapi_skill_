@@ -1,0 +1,13 @@
+{
+  "name": "agents-fastapi-skill-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "typescript": "^5.8.3"
+  }
+}

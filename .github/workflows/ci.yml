@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run tests
+        env:
+          TASKS_DB_PATH: ${{ github.workspace }}/ci-tasks.db
+        run: pytest --cov=app --cov-report=term-missing
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker compose -f docker/docker-compose.yml build
+
+      - name: Start Docker stack
+        run: docker compose -f docker/docker-compose.yml up -d
+
+      - name: Wait for health endpoint
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent http://localhost:8001/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Health check failed"
+          docker compose -f docker/docker-compose.yml logs
+          exit 1
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down

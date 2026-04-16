@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Flow</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <p class="eyebrow">Task API</p>
+        <h1>Task Flow</h1>
+        <p class="subtitle">
+          Minimal task board running on FastAPI, SQLite, and a TypeScript frontend.
+        </p>
+        <form id="task-form" class="task-form">
+          <label class="sr-only" for="task-title">New task title</label>
+          <input
+            id="task-title"
+            name="title"
+            type="text"
+            placeholder="Add a task that matters"
+            autocomplete="off"
+            required
+          />
+          <button type="submit">Create</button>
+        </form>
+        <p id="form-error" class="form-error" role="alert"></p>
+      </section>
+
+      <section class="board">
+        <div class="board-header">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h2>Your tasks</h2>
+          </div>
+          <div class="board-tools">
+            <div class="filters" role="tablist" aria-label="Task filters">
+              <button class="filter-button is-active" data-filter="all" type="button">All</button>
+              <button class="filter-button" data-filter="active" type="button">Active</button>
+              <button class="filter-button" data-filter="completed" type="button">Done</button>
+            </div>
+            <button id="refresh-button" class="ghost-button" type="button">Refresh</button>
+          </div>
+        </div>
+        <div class="stats-grid" aria-label="Task stats">
+          <article class="stat-card">
+            <span class="stat-label">Total</span>
+            <strong id="total-count" class="stat-value">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Active</span>
+            <strong id="active-count" class="stat-value">0</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Completed</span>
+            <strong id="completed-count" class="stat-value">0</strong>
+          </article>
+        </div>
+        <p id="status-text" class="status-text">Loading tasks...</p>
+        <div id="empty-state" class="empty-state" hidden>
+          <p class="empty-title">No tasks in this view.</p>
+          <p class="empty-copy">Create a new task or switch the filter to see more work.</p>
+        </div>
+        <ul id="task-list" class="task-list" aria-live="polite"></ul>
+      </section>
+    </main>
+
+    <template id="task-item-template">
+      <li class="task-card">
+        <div class="task-card-top">
+          <span class="task-badge"></span>
+          <span class="task-id"></span>
+        </div>
+        <form class="task-edit-form">
+          <input class="task-title-input" name="title" type="text" required />
+          <div class="task-actions">
+            <button class="primary-action save-action" type="submit">Save</button>
+            <button class="secondary-action complete-action" type="button">Complete</button>
+            <button class="secondary-action danger-action delete-action" type="button">Delete</button>
+          </div>
+        </form>
+        <p class="task-error" role="alert"></p>
+      </li>
+    </template>
+
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

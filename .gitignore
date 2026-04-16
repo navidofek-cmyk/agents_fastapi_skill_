@@ -3,3 +3,13 @@
 __pycache__/
 *.pyc
 tasks.db
+ci-tasks.db
+coverage-tasks.db
+e2e-tasks.db
+node_modules/
+local_environment_snapshot.txt
+push_github.sh
+.github_token
+playwright-report/
+test-results/
+.coverage

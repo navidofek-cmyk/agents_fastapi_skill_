@@ -1,6 +1,6 @@
 # Task API
 
-Simple FastAPI backend with SQLite task persistence, pytest coverage, Docker support, and Codex agent workflow files.
+Simple FastAPI backend with SQLite task persistence, a TypeScript frontend, pytest coverage, Docker support, and Codex agent workflow files.
 
 ## Run locally
 
@@ -12,13 +12,38 @@ uvicorn app.main:app --reload
 ```
 
 API will be available at `http://localhost:8000`.
+The frontend UI is served from `/`.
 
 By default, tasks are stored in a local SQLite database file at `tasks.db`. You can override the path with the `TASKS_DB_PATH` environment variable.
+
+## Build frontend
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+TypeScript source lives in `frontend/src/app.ts` and builds to `app/static/app.js`.
+
+## Run frontend smoke tests
+
+```bash
+cd frontend
+npx playwright install chromium
+npm run test:e2e
+```
 
 ## Run tests
 
 ```bash
 pytest
+```
+
+## Run coverage
+
+```bash
+pytest --cov=app --cov-report=term-missing
 ```
 
 ## Run tests in Docker

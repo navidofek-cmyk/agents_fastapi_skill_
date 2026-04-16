@@ -85,6 +85,20 @@ def test_complete_task() -> None:
     assert response.json() == {"id": 1, "title": "Ship feature", "completed": True}
 
 
+def test_complete_task_only_updates_target_task() -> None:
+    first = client.post("/tasks", json={"title": "First"})
+    second = client.post("/tasks", json={"title": "Second"})
+
+    response = client.post(f"/tasks/{second.json()['id']}/complete")
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 2, "title": "Second", "completed": True}
+    assert client.get("/tasks").json() == [
+        {"id": 1, "title": "First", "completed": False},
+        {"id": 2, "title": "Second", "completed": True},
+    ]
+
+
 def test_delete_task() -> None:
     created = client.post("/tasks", json={"title": "Remove me"})
 
@@ -93,6 +107,20 @@ def test_delete_task() -> None:
     assert response.status_code == 204
     assert response.content == b""
     assert client.get("/tasks").json() == []
+
+
+def test_delete_task_only_removes_target_task() -> None:
+    first = client.post("/tasks", json={"title": "Keep me"})
+    second = client.post("/tasks", json={"title": "Delete me"})
+    third = client.post("/tasks", json={"title": "Keep me too"})
+
+    response = client.delete(f"/tasks/{second.json()['id']}")
+
+    assert response.status_code == 204
+    assert client.get("/tasks").json() == [
+        {"id": first.json()["id"], "title": "Keep me", "completed": False},
+        {"id": third.json()["id"], "title": "Keep me too", "completed": False},
+    ]
 
 
 def test_delete_task_not_found() -> None:
@@ -110,6 +138,34 @@ def test_patch_task_updates_name() -> None:
     assert response.status_code == 200
     assert response.json() == {"id": 1, "title": "New title", "completed": False}
     assert client.get("/tasks").json() == [{"id": 1, "title": "New title", "completed": False}]
+
+
+def test_patch_task_only_updates_target_task() -> None:
+    first = client.post("/tasks", json={"title": "Stay the same"})
+    second = client.post("/tasks", json={"title": "Rename me"})
+
+    response = client.patch(f"/tasks/{second.json()['id']}", json={"title": "Renamed"})
+
+    assert response.status_code == 200
+    assert response.json() == {"id": 2, "title": "Renamed", "completed": False}
+    assert client.get("/tasks").json() == [
+        {"id": first.json()["id"], "title": "Stay the same", "completed": False},
+        {"id": second.json()["id"], "title": "Renamed", "completed": False},
+    ]
+
+
+def test_patch_completed_task_preserves_completed_state() -> None:
+    created = client.post("/tasks", json={"title": "Complete then rename"})
+    client.post(f"/tasks/{created.json()['id']}/complete")
+
+    response = client.patch(f"/tasks/{created.json()['id']}", json={"title": "Renamed after complete"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": created.json()["id"],
+        "title": "Renamed after complete",
+        "completed": True,
+    }
 
 
 def test_patch_task_not_found() -> None:
