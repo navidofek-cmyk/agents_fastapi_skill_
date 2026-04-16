@@ -70,8 +70,11 @@
     <template id="task-item-template">
       <li class="task-card">
         <div class="task-card-top">
-          <span class="task-badge"></span>
-          <span class="task-id"></span>
+          <div class="task-heading">
+            <span class="task-badge"></span>
+            <span class="task-id"></span>
+          </div>
+          <span class="task-timestamp"></span>
         </div>
         <form class="task-edit-form">
           <input class="task-title-input" name="title" type="text" required />

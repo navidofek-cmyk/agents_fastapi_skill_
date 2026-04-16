@@ -2,6 +2,8 @@ type Task = {
   id: number;
   title: string;
   completed: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 type ValidationErrorResponse = {
@@ -96,6 +98,14 @@ const deleteTask = async (taskId: number): Promise<void> => {
   }
 };
 
+const formatTimestamp = (value: string): string => {
+  const date = new Date(value);
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  })}`;
+};
+
 const updateStats = (tasks: Task[]): void => {
   const completed = tasks.filter((task) => task.completed).length;
   totalCount.textContent = String(tasks.length);
@@ -134,6 +144,7 @@ const renderTasks = (tasks: Task[]): void => {
     const card = fragment.querySelector<HTMLLIElement>(".task-card");
     const badge = fragment.querySelector<HTMLSpanElement>(".task-badge");
     const idLabel = fragment.querySelector<HTMLSpanElement>(".task-id");
+    const timestampLabel = fragment.querySelector<HTMLSpanElement>(".task-timestamp");
     const editForm = fragment.querySelector<HTMLFormElement>(".task-edit-form");
     const titleInput = fragment.querySelector<HTMLInputElement>(".task-title-input");
     const saveButton = fragment.querySelector<HTMLButtonElement>(".save-action");
@@ -141,13 +152,17 @@ const renderTasks = (tasks: Task[]): void => {
     const deleteButton = fragment.querySelector<HTMLButtonElement>(".delete-action");
     const errorNode = fragment.querySelector<HTMLParagraphElement>(".task-error");
 
-    if (!card || !badge || !idLabel || !editForm || !titleInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
+    if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
       continue;
     }
 
     card.dataset.completed = String(task.completed);
     badge.textContent = task.completed ? "Completed" : "Active";
     idLabel.textContent = `Task #${task.id}`;
+    timestampLabel.textContent =
+      task.created_at === task.updated_at
+        ? `Created ${formatTimestamp(task.created_at)}`
+        : `Updated ${formatTimestamp(task.updated_at)}`;
     titleInput.value = task.title;
     saveButton.disabled = true;
     completeButton.dataset.completed = String(task.completed);

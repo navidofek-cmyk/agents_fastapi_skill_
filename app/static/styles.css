@@ -264,6 +264,13 @@ button:disabled {
   margin-bottom: 0.85rem;
 }
 
+.task-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
 .task-badge {
   display: inline-flex;
   align-items: center;
@@ -285,6 +292,12 @@ button:disabled {
 .task-id {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.task-timestamp {
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: right;
 }
 
 .task-actions {

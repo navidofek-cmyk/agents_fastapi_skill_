@@ -73,6 +73,13 @@ const deleteTask = async (taskId) => {
         throw new Error("Could not delete task.");
     }
 };
+const formatTimestamp = (value) => {
+    const date = new Date(value);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+    })}`;
+};
 const updateStats = (tasks) => {
     const completed = tasks.filter((task) => task.completed).length;
     totalCount.textContent = String(tasks.length);
@@ -104,18 +111,23 @@ const renderTasks = (tasks) => {
         const card = fragment.querySelector(".task-card");
         const badge = fragment.querySelector(".task-badge");
         const idLabel = fragment.querySelector(".task-id");
+        const timestampLabel = fragment.querySelector(".task-timestamp");
         const editForm = fragment.querySelector(".task-edit-form");
         const titleInput = fragment.querySelector(".task-title-input");
         const saveButton = fragment.querySelector(".save-action");
         const completeButton = fragment.querySelector(".complete-action");
         const deleteButton = fragment.querySelector(".delete-action");
         const errorNode = fragment.querySelector(".task-error");
-        if (!card || !badge || !idLabel || !editForm || !titleInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
+        if (!card || !badge || !idLabel || !timestampLabel || !editForm || !titleInput || !saveButton || !completeButton || !deleteButton || !errorNode) {
             continue;
         }
         card.dataset.completed = String(task.completed);
         badge.textContent = task.completed ? "Completed" : "Active";
         idLabel.textContent = `Task #${task.id}`;
+        timestampLabel.textContent =
+            task.created_at === task.updated_at
+                ? `Created ${formatTimestamp(task.created_at)}`
+                : `Updated ${formatTimestamp(task.updated_at)}`;
         titleInput.value = task.title;
         saveButton.disabled = true;
         completeButton.dataset.completed = String(task.completed);

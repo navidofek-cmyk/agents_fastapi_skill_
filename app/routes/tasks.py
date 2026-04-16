@@ -21,6 +21,8 @@ class TaskResponse(BaseModel):
     id: int
     title: str
     completed: bool
+    created_at: str
+    updated_at: str
 
 
 @router.post("/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)

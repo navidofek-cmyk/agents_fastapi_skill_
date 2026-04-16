@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -13,11 +14,23 @@ def setup_function() -> None:
     task_service.reset()
 
 
+def assert_task_timestamps(task: dict[str, object]) -> None:
+    assert isinstance(task["created_at"], str)
+    assert isinstance(task["updated_at"], str)
+    assert task["created_at"]
+    assert task["updated_at"]
+
+
 def test_create_task() -> None:
     response = client.post("/tasks", json={"title": "Write tests"})
 
     assert response.status_code == 201
-    assert response.json() == {"id": 1, "title": "Write tests", "completed": False}
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["title"] == "Write tests"
+    assert payload["completed"] is False
+    assert_task_timestamps(payload)
+    assert payload["created_at"] == payload["updated_at"]
 
 
 def test_list_tasks() -> None:
@@ -27,10 +40,12 @@ def test_list_tasks() -> None:
     response = client.get("/tasks")
 
     assert response.status_code == 200
-    assert response.json() == [
-        {"id": 1, "title": "First", "completed": False},
-        {"id": 2, "title": "Second", "completed": False},
-    ]
+    payload = response.json()
+    assert [task["id"] for task in payload] == [1, 2]
+    assert [task["title"] for task in payload] == ["First", "Second"]
+    assert [task["completed"] for task in payload] == [False, False]
+    for task in payload:
+        assert_task_timestamps(task)
 
 
 def test_get_task() -> None:
@@ -39,7 +54,11 @@ def test_get_task() -> None:
     response = client.get(f"/tasks/{created.json()['id']}")
 
     assert response.status_code == 200
-    assert response.json() == {"id": 1, "title": "Fetch me", "completed": False}
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["title"] == "Fetch me"
+    assert payload["completed"] is False
+    assert_task_timestamps(payload)
 
 
 def test_get_task_not_found() -> None:
@@ -56,9 +75,9 @@ def test_tasks_persist_between_requests_within_app_instance() -> None:
     get_response = client.get("/tasks/1")
 
     assert list_response.status_code == 200
-    assert list_response.json() == [{"id": 1, "title": "Persist me", "completed": False}]
+    assert [task["title"] for task in list_response.json()] == ["Persist me"]
     assert get_response.status_code == 200
-    assert get_response.json() == {"id": 1, "title": "Persist me", "completed": False}
+    assert get_response.json()["title"] == "Persist me"
 
 
 def test_tasks_persist_across_service_reinstantiation(tmp_path: Path) -> None:
@@ -69,11 +88,67 @@ def test_tasks_persist_across_service_reinstantiation(tmp_path: Path) -> None:
 
     second_service = TaskService(str(db_path))
 
-    assert second_service.get_task(created["id"]) == {
-        "id": created["id"],
-        "title": "Persist after restart",
-        "completed": False,
-    }
+    payload = second_service.get_task(created["id"])
+    assert payload["id"] == created["id"]
+    assert payload["title"] == "Persist after restart"
+    assert payload["completed"] is False
+    assert_task_timestamps(payload)
+
+
+def test_migrates_legacy_sqlite_table_without_timestamps(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy.sqlite"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO tasks (title, completed) VALUES (?, ?)",
+            ("Legacy task", 1),
+        )
+        connection.commit()
+
+    migrated_service = TaskService(str(db_path))
+
+    payload = migrated_service.get_task(1)
+    assert payload["title"] == "Legacy task"
+    assert payload["completed"] is True
+    assert_task_timestamps(payload)
+    assert payload["created_at"] == payload["updated_at"]
+
+
+def test_migrates_sqlite_table_with_created_at_but_missing_updated_at(tmp_path: Path) -> None:
+    db_path = tmp_path / "partial-legacy.sqlite"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO tasks (title, completed, created_at) VALUES (?, ?, ?)",
+            ("Partially migrated task", 0, "2026-01-01T00:00:00+00:00"),
+        )
+        connection.commit()
+
+    migrated_service = TaskService(str(db_path))
+
+    payload = migrated_service.get_task(1)
+    assert payload["title"] == "Partially migrated task"
+    assert payload["completed"] is False
+    assert payload["created_at"] == "2026-01-01T00:00:00+00:00"
+    assert isinstance(payload["updated_at"], str)
+    assert payload["updated_at"]
 
 
 def test_complete_task() -> None:
@@ -82,7 +157,11 @@ def test_complete_task() -> None:
     response = client.post(f"/tasks/{created.json()['id']}/complete")
 
     assert response.status_code == 200
-    assert response.json() == {"id": 1, "title": "Ship feature", "completed": True}
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["title"] == "Ship feature"
+    assert payload["completed"] is True
+    assert_task_timestamps(payload)
 
 
 def test_complete_task_only_updates_target_task() -> None:
@@ -92,10 +171,11 @@ def test_complete_task_only_updates_target_task() -> None:
     response = client.post(f"/tasks/{second.json()['id']}/complete")
 
     assert response.status_code == 200
-    assert response.json() == {"id": 2, "title": "Second", "completed": True}
-    assert client.get("/tasks").json() == [
-        {"id": 1, "title": "First", "completed": False},
-        {"id": 2, "title": "Second", "completed": True},
+    assert response.json()["completed"] is True
+    payload = client.get("/tasks").json()
+    assert [(task["title"], task["completed"]) for task in payload] == [
+        ("First", False),
+        ("Second", True),
     ]
 
 
@@ -117,10 +197,13 @@ def test_delete_task_only_removes_target_task() -> None:
     response = client.delete(f"/tasks/{second.json()['id']}")
 
     assert response.status_code == 204
-    assert client.get("/tasks").json() == [
-        {"id": first.json()["id"], "title": "Keep me", "completed": False},
-        {"id": third.json()["id"], "title": "Keep me too", "completed": False},
+    payload = client.get("/tasks").json()
+    assert [(task["id"], task["title"], task["completed"]) for task in payload] == [
+        (first.json()["id"], "Keep me", False),
+        (third.json()["id"], "Keep me too", False),
     ]
+    for task in payload:
+        assert_task_timestamps(task)
 
 
 def test_delete_task_not_found() -> None:
@@ -136,8 +219,13 @@ def test_patch_task_updates_name() -> None:
     response = client.patch(f"/tasks/{created.json()['id']}", json={"title": "New title"})
 
     assert response.status_code == 200
-    assert response.json() == {"id": 1, "title": "New title", "completed": False}
-    assert client.get("/tasks").json() == [{"id": 1, "title": "New title", "completed": False}]
+    payload = response.json()
+    assert payload["id"] == 1
+    assert payload["title"] == "New title"
+    assert payload["completed"] is False
+    assert_task_timestamps(payload)
+    assert payload["updated_at"] >= payload["created_at"]
+    assert client.get("/tasks").json()[0]["title"] == "New title"
 
 
 def test_patch_task_only_updates_target_task() -> None:
@@ -147,25 +235,26 @@ def test_patch_task_only_updates_target_task() -> None:
     response = client.patch(f"/tasks/{second.json()['id']}", json={"title": "Renamed"})
 
     assert response.status_code == 200
-    assert response.json() == {"id": 2, "title": "Renamed", "completed": False}
-    assert client.get("/tasks").json() == [
-        {"id": first.json()["id"], "title": "Stay the same", "completed": False},
-        {"id": second.json()["id"], "title": "Renamed", "completed": False},
+    payload = client.get("/tasks").json()
+    assert [(task["title"], task["completed"]) for task in payload] == [
+        ("Stay the same", False),
+        ("Renamed", False),
     ]
 
 
 def test_patch_completed_task_preserves_completed_state() -> None:
     created = client.post("/tasks", json={"title": "Complete then rename"})
-    client.post(f"/tasks/{created.json()['id']}/complete")
+    completed = client.post(f"/tasks/{created.json()['id']}/complete").json()
 
     response = client.patch(f"/tasks/{created.json()['id']}", json={"title": "Renamed after complete"})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "id": created.json()["id"],
-        "title": "Renamed after complete",
-        "completed": True,
-    }
+    payload = response.json()
+    assert payload["id"] == created.json()["id"]
+    assert payload["title"] == "Renamed after complete"
+    assert payload["completed"] is True
+    assert payload["created_at"] == completed["created_at"]
+    assert payload["updated_at"] >= completed["updated_at"]
 
 
 def test_patch_task_not_found() -> None:
